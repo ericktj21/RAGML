@@ -37,6 +37,27 @@ class Interpretation:
     unresolved: tuple[str, ...] = ()
 
 
+SYNONYMS: dict[str, str] = {
+    "audifono": "auricular",
+    "casco": "auricular",
+    "diadema": "auricular",
+    "mouse": "raton",
+    "webcam": "camara",
+    "mesa": "escritorio",
+    "morral": "mochila",
+    "maletin": "bolsa",
+    "termo": "botella",
+    "mug": "taza",
+}
+
+DOCUMENT_QUERY = re.compile(
+    r"\b(ficha|manual\w*|garanti\w*|politic\w*|cambi\w*|devoluci\w*|entreg\w*|envi\w*|"
+    r"condici\w*|plazo\w*|reembols\w*|retract\w*|potencia|material\w*|medida\w*|"
+    r"dimension\w*|voltaje|puerto\w*|longitud|capacidad|flujo|lumen\w*|alcance|"
+    r"resoluci\w*|sensor|bateria|instrucci\w*|especificaci\w*|cubre|dura)\b"
+)
+
+
 def singular(word: str) -> str:
     if word.endswith("ces"):
         return word[:-3] + "z"
@@ -64,7 +85,8 @@ def interpret(
                 for token in normalized(p.name).split()[1:]
             )
         )
-    nouns = {singular(word) for word in re.findall(r"\w+", text.split(" para ")[0])}
+    raw_nouns = {singular(word) for word in re.findall(r"\w+", text.split(" para ")[0])}
+    nouns = raw_nouns | {SYNONYMS[w] for w in raw_nouns if w in SYNONYMS}
     candidates = tuple(
         p.product_id for p in catalog.products if singular(normalized(p.name).split()[0]) in nouns
     )
@@ -142,11 +164,24 @@ def interpret(
         r"\b(precio|cuesta|cuestan|vale|stock|existencias|disponible|agotad\w*)\b", text
     ):
         intent = "commercial"
-    elif budget or re.search(
-        r"\b(recom\w*|busco|busca|necesito|quiero|opciones?|barat\w*|econom\w*)\b", text
+    elif (
+        budget
+        or re.search(
+            r"\b(recom\w*|busco|busca|necesito|quiero|opciones?|barat\w*|econom\w*)\b",
+            text,
+        )
+        or ((categories or candidates) and not products and not DOCUMENT_QUERY.search(text))
     ):
         intent = "recommend"
-    elif text.strip(" ¡!¿?.") in ("hola", "ayuda", "buenas", "buenos dias"):
+    elif (
+        text.strip(" ¡!¿?.")
+        in ("hola", "ayuda", "buenas", "buenos dias", "buenas tardes", "buenas noches")
+        or re.search(
+            r"\b(como te llamas|quien eres|que eres|que haces|que puedes hacer|"
+            r"como funcionas|ayudame|buenos dias|buenas tardes|buenas noches)\b",
+            text,
+        )
+    ) and not (categories or products or candidates or variants or DOCUMENT_QUERY.search(text)):
         intent = "help"
     else:
         intent = "document"

@@ -253,7 +253,9 @@ class ChatService:
         catalog, manifest = snapshot.catalog, snapshot.manifest
         session_id, category_id, budget = state.session_id, state.category_id, state.budget
         evaluated_at = self.commercial_time(catalog)
-        metadata_path = self.settings.resolve_path(self.settings.catalog_path).parent / "package-metadata.json"
+        metadata_path = (
+            self.settings.resolve_path(self.settings.catalog_path).parent / "package-metadata.json"
+        )
         simulated = catalog.profile.data_mode == "demo" and metadata_path.is_file()
         warnings = (
             (
@@ -330,6 +332,7 @@ class ChatService:
         if parsed.intent == "help":
             return response(
                 "clarification_required",
+                f"Soy el asistente de {catalog.profile.display_name}. "
                 "Puedo consultar características y políticas, recomendar y comparar. "
                 "Indica qué buscas y tu presupuesto. Categorías: "
                 + ", ".join(c.name for c in catalog.profile.categories),
@@ -439,6 +442,9 @@ class ChatService:
                 text=body.message,
                 product_ids=parsed.product_ids,
                 variant_ids=selected,
+                category_ids=(category_id,)
+                if category_id and not (parsed.product_ids or selected)
+                else (),
                 k=self.settings.retrieval_k,
             )
         )
